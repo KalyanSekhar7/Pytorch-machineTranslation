@@ -256,7 +256,7 @@ model = Seq2Seq(encoder_net, decoder_net, output_size).to(device)
 criterion = nn.CrossEntropyLoss(ignore_index=english_dict["<PAD>"])
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-# do the load model thing
+# do the load translation_model.py thing
 
 for epoch in tqdm(range(num_epochs)):
     # print(f"Epoch : {epoch}")
@@ -267,9 +267,9 @@ for epoch in tqdm(range(num_epochs)):
 
         output = model(source, target)
         # output shae is (target_len,batch_size,output_dim)
-        # print("model output shape :",output.shape)
+        # print("translation_model.py output shape :",output.shape)
         output = output[1:].reshape(-1, output.shape[2])  # like concatenating
-        print("model output shape2 :", output.shape)
+        print("translation_model.py output shape2 :", output.shape)
         # print("target",target)
         # print("output",output)
         target = target[1:].reshape(-1)
