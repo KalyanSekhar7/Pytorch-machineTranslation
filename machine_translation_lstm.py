@@ -2,18 +2,16 @@ import random
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torchtext.datasets import Multi30k  # german to english translator
-from torchtext.data.utils import get_tokenizer
-from torchtext.datasets import IWSLT2017
+
 from torch.utils.data import Dataset, DataLoader
-# import spacy
 
 from collections import Counter, defaultdict
 from nltk.tokenize import sent_tokenize, word_tokenize
 from tqdm import tqdm
+from configparser import ConfigParser
 
-from sklearn.feature_extraction.text import CountVectorizer
+config = ConfigParser()
+config.read("lstm_config.ini")
 
 # English to French !!
 # tokenize
@@ -61,7 +59,7 @@ def create_vocabulary(words, corpus, padding_length=65):
                                                     padding_value=word2idx["<PAD>"])
     padded_corpus = padded_corpus[1:]
     # changing the padded corupus shape from (batch_size,target_len) ->(target_len,batch_size)
-    padded_corpus  = padded_corpus.transpose(0,1)
+    padded_corpus = padded_corpus.transpose(0, 1)
     print(padded_corpus.shape)
     # print("final padded sequence length is ", padded_corpus.shape)
     # print(word2idx, padded_corpus)
@@ -157,28 +155,33 @@ class Seq2Seq(nn.Module):
             best_guess = output.argmax(1)
 
             x = target[t] if random.random() < teacher_force_ratio else best_guess
-        print("final_output shape:",outputs.shape)
+        print("final_output shape:", outputs.shape)
         return outputs
 
 
 # Defining the parametets
+training_data = config["TRAINING"]
+model_data = config["MODEL"]
+encoder_data = config["ENCODER"]
+decoder_data = config["DECODER"]
 
-num_epochs = 10
-learning_rate = 0.001
-batch_size = 64
+num_epochs = training_data.getint("num_epochs")
+learning_rate = training_data.getfloat("learning_rate")
+batch_size = training_data.getint("batch_size")
 
-load_model = False
+load_model = model_data.getboolean("load_model")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 vocab_size_encoder = len(english_dict)
 vocab_size_decoder = len(french_dict)
 output_size = len(french_dict)
-encoder_embedding_size = 300
-decoder_embedding_size = 300
-hidden_size = 1024
-num_layers = 2
-encoder_dropout = 0.5
-decoder_dropout = 0.5
+
+encoder_embedding_size = encoder_data.getint("encoder_embedding_size")
+decoder_embedding_size = decoder_data.getint("decoder_embedding_size")
+hidden_size = encoder_data.getint("hidden_size")
+num_layers = encoder_data.getint("num_layers")
+encoder_dropout = encoder_data.getfloat("encoder_dropout")
+decoder_dropout = decoder_data.getfloat("decoder_dropout")
 
 
 # writer = SummaryWriter(f"runs/loss_plot"
@@ -212,7 +215,7 @@ decoder_net = Decoder(vocab_size=vocab_size_decoder, embedding_size=decoder_embe
 model = Seq2Seq(encoder_net, decoder_net, output_size).to(device)
 # print(french_dict)
 criterion = nn.CrossEntropyLoss(ignore_index=english_dict["<PAD>"])
-optimizer = torch.optim.Adam(model.parameters(),lr = learning_rate)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 # do the load model thing
 
@@ -226,7 +229,7 @@ for epoch in tqdm(range(num_epochs)):
         output = model(source, target)
         # output shae is (target_len,batch_size,output_dim)
         # print("model output shape :",output.shape)
-        output = output[1:].reshape(-1,output.shape[2]) # like concatenating
+        output = output[1:].reshape(-1, output.shape[2])  # like concatenating
         print("model output shape2 :", output.shape)
         # print("target",target)
         # print("output",output)
@@ -234,13 +237,13 @@ for epoch in tqdm(range(num_epochs)):
 
         optimizer.zero_grad()
 
-        loss = criterion(output,target)
+        loss = criterion(output, target)
         try:
             loss.backward()
         except Exception as e:
-            print("Error: epoch:",epoch,"batch index:",batch_idx)
+            print("Error: epoch:", epoch, "batch index:", batch_idx)
+            # some Exception is coming in concat making it a 0 in a vec dimension
         # to make sure gradients do not explode
-        torch.nn.utils.clip_grad_norm_(model.parameters(),max_norm=1)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
         optimizer.step()
     target_sentence = "I am going outside to play with my friends"
-
